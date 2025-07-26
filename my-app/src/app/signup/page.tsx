@@ -1,18 +1,43 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabaseclient'
 
 type UserRole = 'client' | 'partner'
 
+interface Partner {
+  id: string
+  first_name: string
+  last_name: string
+  email: string
+}
+
 export default function SignUpPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState<UserRole>('client')
-  const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
+  const [role, setRole] = useState<UserRole>('client')
+  const [selectedPartnerId, setSelectedPartnerId] = useState('')
+  const [partners, setPartners] = useState<Partner[]>([])
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState('')
+
+  // Fetch partners when component mounts
+  useEffect(() => {
+    const fetchPartners = async () => {
+      const { data } = await supabase
+        .from('users')
+        .select('id, first_name, last_name, email')
+        .eq('is_partner', true)
+
+      if (data) {
+        setPartners(data)
+      }
+    }
+
+    fetchPartners()
+  }, [])
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -45,7 +70,8 @@ export default function SignUpPage() {
               email,
               is_partner: role === 'partner',
               first_name: firstName,
-              last_name: lastName
+              last_name: lastName,
+              connected_partner_id: selectedPartnerId || null
             }
           ])
 
@@ -110,7 +136,7 @@ export default function SignUpPage() {
                 type="email"
                 autoComplete="email"
                 required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="Email address"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -126,7 +152,7 @@ export default function SignUpPage() {
                 type="password"
                 autoComplete="current-password"
                 required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -149,6 +175,32 @@ export default function SignUpPage() {
               <option value="partner">Partner</option>
             </select>
           </div>
+
+          {/* Partner Connection Dropdown - Only show for clients */}
+          {role === 'client' && partners.length > 0 && (
+            <div>
+              <label htmlFor="partner" className="block text-sm font-medium text-gray-700">
+                Connect to a Partner (Optional)
+              </label>
+              <select
+                id="partner"
+                name="partner"
+                className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                value={selectedPartnerId}
+                onChange={(e) => setSelectedPartnerId(e.target.value)}
+              >
+                <option value="">No partner selected</option>
+                {partners.map((partner) => (
+                  <option key={partner.id} value={partner.id}>
+                    {partner.first_name} {partner.last_name} ({partner.email})
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-500">
+                You can always connect to a partner later from your dashboard.
+              </p>
+            </div>
+          )}
 
           <div>
             <button
