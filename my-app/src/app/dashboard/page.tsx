@@ -155,6 +155,8 @@ export default function DashboardPage() {
 
     setVitalLoading(true)
     try {
+      console.log('🚀 Launching Vital for user:', auth.user.id)
+      
       const response = await fetch('/api/vital/launch', {
         method: 'POST',
         headers: {
@@ -165,24 +167,29 @@ export default function DashboardPage() {
         })
       })
 
+      console.log('📡 Response status:', response.status)
+      console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()))
+
       // Check if response is ok before trying to parse JSON
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('API Error:', response.status, errorText)
+        console.error('❌ API Error:', response.status, errorText)
         throw new Error(`API Error: ${response.status} - ${errorText}`)
       }
 
       const data = await response.json()
+      console.log('📦 Response data:', data)
       
       if (data.success && data.linkUrl) {
+        console.log('✅ Opening Vital link:', data.linkUrl)
         // Open Vital link in new window
         window.open(data.linkUrl, '_blank', 'width=600,height=700')
       } else {
-        console.error('Failed to launch Vital:', data.error)
-        alert('Failed to launch Vital: ' + (data.error || 'Unknown error'))
+        console.error('❌ Failed to launch Vital:', data)
+        alert('Failed to launch Vital: ' + (data.error || 'No link URL provided'))
       }
     } catch (error: any) {
-      console.error('Error launching Vital:', error)
+      console.error('❌ Error launching Vital:', error)
       alert('Error connecting device: ' + (error.message || 'Unknown error'))
     } finally {
       setVitalLoading(false)
