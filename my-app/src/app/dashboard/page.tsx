@@ -92,30 +92,37 @@ export default function DashboardPage() {
     fetchConnectedClients()
   }, [auth.user, userProfile?.is_partner])
 
-  // Fetch wearable data for clients via API
+  // Fetch wearable data for clients from database
   useEffect(() => {
     const fetchWearableData = async () => {
       if (!auth.user || userProfile?.is_partner) return
 
       setWearableLoading(true)
       try {
-        const response = await fetch('/api/wearables', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ userId: auth.user.id })
-        })
+        // Fetch real data from wearables table
+        const { data, error } = await supabase
+          .from('wearables')
+          .select('*')
+          .eq('user_id', auth.user.id)
+          .single()
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch wearable data')
+        if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+          console.error('Error fetching wearable data:', error)
+          return
         }
 
-        const result = await response.json()
-        if (result.success) {
-          setWearableData(result.data)
-        } else {
-          throw new Error(result.error || 'Failed to fetch wearable data')
+        if (data) {
+          // Convert database data to the format expected by the UI
+          const wearableData: WearableData = {
+            steps: data.steps || 0,
+            heartRate: data.heart_rate ? [data.heart_rate] : [],
+            caloriesBurned: data.calories || 0,
+            sleepHours: data.sleep_hours || 0,
+            distance: data.distance || 0,
+            deviceType: data.device_type || 'Connected Device',
+            lastUpdated: data.last_updated || data.updated_at || new Date().toISOString()
+          }
+          setWearableData(wearableData)
         }
       } catch (error) {
         console.error('Error fetching wearable data:', error)

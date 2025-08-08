@@ -9,6 +9,7 @@ export async function POST(req: NextRequest) {
     if (!vitalApiKey) {
       console.error("❌ VITAL_API_KEY is not set in environment variables");
       return NextResponse.json({ 
+        success: false,
         error: "VITAL_API_KEY is not configured",
         message: "Please set the VITAL_API_KEY environment variable"
       }, { status: 500 });
@@ -16,72 +17,14 @@ export async function POST(req: NextRequest) {
     
     console.log("🔥 Runtime VITAL_API_KEY exists:", !!vitalApiKey);
 
-    // Extract userId from multiple possible sources
-    let userId;
-    
-    // Try to get from request body first
-    try {
-      const body = await req.json();
-      userId = body.userId;
-      console.log("Body userId:", userId);
-    } catch (e) {
-      console.log("No JSON body found, checking other sources");
-    }
-    
-    // Try to extract userId from Supabase JWT token in Authorization header
-    if (!userId) {
-      const authHeader = req.headers.get("authorization");
-      if (authHeader?.startsWith("Bearer ")) {
-        const token = authHeader.substring(7);
-        try {
-          // Verify and decode the Supabase token
-          const { data: { user }, error } = await supabase.auth.getUser(token);
-          if (!error && user) {
-            userId = user.id;
-            console.log("Extracted userId from JWT:", userId);
-          }
-        } catch (error) {
-          console.error("Failed to decode JWT token:", error);
-        }
-      }
-    }
-    
-    // Try to extract from patient_session cookie
-    if (!userId) {
-      const patientSession = req.cookies.get("patient_session")?.value;
-      if (patientSession) {
-        userId = patientSession;
-        console.log("Using patient_session as userId:", userId);
-      }
-    }
-    
-    // If not in body, try other cookie names
-    if (!userId) {
-      userId = req.cookies.get("userId")?.value || 
-               req.cookies.get("user_id")?.value || 
-               req.cookies.get("uid")?.value ||
-               req.cookies.get("session")?.value;
-    }
-    
-    // If still not found, try headers
-    if (!userId) {
-      userId = req.headers.get("x-user-id") || req.headers.get("user-id");
-    }
-    
-    // Debug: log all available sources
-    console.log("All cookies:", Object.fromEntries(req.cookies.getAll().map(c => [c.name, c.value])));
-    console.log("Authorization header present:", !!req.headers.get("authorization"));
-    console.log("Vital API Key exists:", !!vitalApiKey);
-    console.log("Final User ID:", userId);
+    // Extract userId from request body
+    const body = await req.json();
+    const userId = body.userId;
     
     if (!userId) {
       return NextResponse.json({ 
-        error: "Missing user ID. Please ensure you're authenticated or provide userId in request body.",
-        debug: {
-          cookiesFound: req.cookies.getAll().map(c => c.name),
-          hasAuthHeader: !!req.headers.get("authorization"),
-          bodyParsed: false
-        }
+        success: false,
+        error: "Missing user ID. Please provide userId in request body."
       }, { status: 400 });
     }
 
@@ -112,6 +55,7 @@ export async function POST(req: NextRequest) {
     } else {
       console.error("Unexpected response from Vital user creation:", userRes.status, userJson);
       return NextResponse.json({ 
+        success: false,
         error: "Failed to create/resolve Vital user", 
         detail: userJson,
         status: userRes.status 
@@ -121,6 +65,7 @@ export async function POST(req: NextRequest) {
     if (!vitalUserId) {
       console.error("Failed to get Vital user ID:", userJson);
       return NextResponse.json({ 
+        success: false,
         error: "Unable to resolve Vital user ID", 
         detail: userJson 
       }, { status: 500 });
@@ -144,6 +89,7 @@ export async function POST(req: NextRequest) {
     if (!tokenRes.ok) {
       console.error("Failed to generate link token:", tokenRes.status, tokenJson);
       return NextResponse.json({ 
+        success: false,
         error: "Failed to generate link token", 
         detail: tokenJson,
         status: tokenRes.status 
@@ -153,6 +99,7 @@ export async function POST(req: NextRequest) {
     if (!tokenJson.link_web_url) {
       console.error("No link_web_url in response:", tokenJson);
       return NextResponse.json({ 
+        success: false,
         error: "Link URL not provided in response", 
         detail: tokenJson 
       }, { status: 500 });
@@ -181,14 +128,15 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ 
+      success: true,
       linkUrl: tokenJson.link_web_url,
       vitalUserId,
-      success: true 
     });
     
   } catch (error: any) {
     console.error("Error in vital launch:", error);
     return NextResponse.json({ 
+      success: false,
       error: "Internal server error", 
       message: error.message,
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
